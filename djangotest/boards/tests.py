@@ -1,7 +1,8 @@
 from django.test import TestCase
 from django.urls import reverse, resolve
 from .views import home, board_topics, new_topic
-from .models import Board
+from .models import Board, Topic, Post
+from django.contrib.auth.models import User
 # Create your tests here.
 
 class HomeTests(TestCase):
@@ -49,6 +50,7 @@ class BoardTests(TestCase):
 class NewTopicTests(TestCase):
     def setUp(self):
         self.board = Board.objects.create(name="Django", description="Django is the coolest frame")
+        self.user = User.objects.create_user(username='john', email='john@doe.com', password='123')
         url = reverse('new_topic', kwargs={'pk':1})
         self.response = self.client.get(url)
 
@@ -66,7 +68,41 @@ class NewTopicTests(TestCase):
 
     def test_new_topic_view_contains_link_back_to_board_topics_view(self):
         board_topic_url = reverse('board_topics', kwargs={'pk':1})
-        self.assertContains(self.response, 'href="{}"'.format(board_topic_url))
+        self.assertContains(self.response, 'href="{}"'.format(board_topic_url)) 
+
+    def test_csrf(self):
+        self.assertContains(self.response , 'csrfmiddlewaretoken')
+
+    def test_new_topic_valid_post_data_form(self):
+        url = reverse('new_topic', kwargs={'pk':1})
+        data = {
+            'subject':'Testing',
+            'message':'Django'
+        }
+        response= self.client.post(url, data)
+        # self.assertEquals(response.status_code, 200)
+        self.assertTrue(Topic.objects.exists())
+        self.assertTrue(Post.objects.exists())
+
+    def test_new_topic_invalid__post_data_empty_fields(self):
+        url = reverse('new_topic', kwargs={'pk':1})
+        data = {
+            'subject':'',
+            'message':''
+        }
+        response= self.client.post(url, data)
+        self.assertEquals(response.status_code, 200)
+        self.assertFalse(Topic.objects.exists())
+        self.assertFalse(Post.objects.exists())
+
+    def test_new_topic_invalid_post_data(self):
+        url = reverse('new_topic', kwargs={'pk':1})
+        response= self.client.post(url, {})
+        form = response.context.get('form')
+        self.assertEquals(response.status_code, 200)
+        self.assertFalse(Topic.objects.exists())
+        self.assertFalse(Post.objects.exists())
+        self.assertTrue(form.errors)
 
 
 
